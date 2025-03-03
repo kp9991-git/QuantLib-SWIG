@@ -36,6 +36,7 @@
 using QuantLib::Swap;
 using QuantLib::FixedVsFloatingSwap;
 using QuantLib::VanillaSwap;
+using QuantLib::IrregularSwap;
 using QuantLib::MakeVanillaSwap;
 using QuantLib::NonstandardSwap;
 using QuantLib::DiscountingSwapEngine;
@@ -103,7 +104,7 @@ class FixedVsFloatingSwap : public Swap {
 
     Real floatingLegBPS();
     Real floatingLegNPV();
-    Spread fairSpread();
+    Spread fairSpread();	
 };
 
 %shared_ptr(VanillaSwap)
@@ -176,14 +177,38 @@ class MakeVanillaSwap {
 
         MakeVanillaSwap(const Period& swapTenor,
                         const ext::shared_ptr<IborIndex>& index,
-                        doubleOrNull fixedRate = Null<Rate>(),
-                        const Period& forwardStart = 0*Days);
+                        Rate fixedRate,
+                        const Period& forwardStart);
         
         %extend {
             ext::shared_ptr<VanillaSwap> makeVanillaSwap() {
                 return (ext::shared_ptr<VanillaSwap>)(* $self);
             }
         }
+};
+
+%shared_ptr(IrregularSwap)
+class IrregularSwap : public Swap {
+  public:
+	enum Type { Receiver = -1, Payer = 1 };
+    %extend {
+        IrregularSwap(Type type,
+                    const Leg& fixLeg,
+                    const Leg& floatLeg) {
+            ext::optional<BusinessDayConvention> paymentConvention = ext::nullopt;
+
+            return new IrregularSwap(type, fixLeg, floatLeg);
+        }		
+    }
+	
+	Real fixedLegBPS();
+    Real fixedLegNPV();
+    Rate fairRate();
+
+    Real floatingLegBPS();
+    Real floatingLegNPV();
+    Spread fairSpread();
+	
 };
 
 #if defined(SWIGPYTHON)
@@ -222,7 +247,7 @@ _MAKEVANILLA_METHODS = {
     "atParCoupons": "withAtParCoupons",
 }
 
-def MakeVanillaSwap(swapTenor, iborIndex, fixedRate=None, forwardStart=Period(0, Days), **kwargs):
+def MakeVanillaSwap(swapTenor, iborIndex, fixedRate, forwardStart, **kwargs):
     mv = _MakeVanillaSwap(swapTenor, iborIndex, fixedRate, forwardStart)
     _SetSwapAttrs("MakeVanillaSwap", _MAKEVANILLA_METHODS, mv, kwargs)
     return mv.makeVanillaSwap()
@@ -421,7 +446,7 @@ class MakeOIS {
       public:
         MakeOIS(const Period& swapTenor,
                 const ext::shared_ptr<OvernightIndex>& overnightIndex,
-                doubleOrNull fixedRate = Null<Rate>(),
+                Rate fixedRate = Null<Rate>(),
                 const Period& fwdStart = 0*Days);
 
         %extend {
@@ -511,7 +536,7 @@ _MAKEOIS_METHODS = {
     "pricingEngine": "withPricingEngine",
 }
 
-def MakeOIS(swapTenor, overnightIndex, fixedRate=None, fwdStart=Period(0, Days), **kwargs):
+def MakeOIS(swapTenor, overnightIndex, fixedRate, fwdStart=Period(0, Days), **kwargs):
     mv = _MakeOIS(swapTenor, overnightIndex, fixedRate, fwdStart)
     _SetSwapAttrs("MakeOIS", _MAKEOIS_METHODS, mv, kwargs)
     return mv.makeOIS()

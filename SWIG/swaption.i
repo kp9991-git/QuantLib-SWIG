@@ -34,13 +34,19 @@
 using QuantLib::Actual365Fixed;
 using QuantLib::Swaption;
 using QuantLib::NonstandardSwaption;
+using QuantLib::IrregularSwaption;
 using QuantLib::Settlement;
+using QuantLib::IrregularSettlement;
 using QuantLib::FloatFloatSwaption;
 %}
 
 struct Settlement {
     enum Type { Physical, Cash };
     enum Method { PhysicalOTC, PhysicalCleared, CollateralizedCashPrice, ParYieldCurve };
+};
+
+struct IrregularSettlement {
+    enum Type { Physical, Cash };
 };
     
 %shared_ptr(Swaption)
@@ -135,6 +141,29 @@ class NonstandardSwaption : public Instrument {
     }
 };
 
+%shared_ptr(IrregularSwaption)
+class IrregularSwaption : public Instrument {
+  public:
+    IrregularSwaption(const ext::shared_ptr<IrregularSwap>& swap,
+                const ext::shared_ptr<Exercise>& exercise,
+                IrregularSettlement::Type delivery = Settlement::Physical);
+                
+    const ext::shared_ptr<IrregularSwap> &underlyingSwap() const;
+	
+	#if !defined(SWIGJAVA) && !defined(SWIGCSHARP)
+    %feature("kwargs") impliedVolatility;
+    #endif
+    Volatility impliedVolatility(
+                          Real price,
+                          const Handle<YieldTermStructure>& discountCurve,
+                          Volatility guess,
+                          Real accuracy = 1.0e-4,
+                          Natural maxEvaluations = 100,
+                          Volatility minVol = 1.0e-7,
+                          Volatility maxVol = 4.0) const;
+
+};
+
 %shared_ptr(FloatFloatSwaption)
 class FloatFloatSwaption : public Instrument {
 public:
@@ -210,6 +239,17 @@ class BachelierSwaptionEngine : public PricingEngine {
     BachelierSwaptionEngine(const Handle<YieldTermStructure> & discountCurve,
                             const Handle<SwaptionVolatilityStructure>& v,
                             CashAnnuityModel model = DiscountCurve);
+};
+
+%{
+using QuantLib::HaganIrregularSwaptionEngine;
+%}
+
+%shared_ptr(HaganIrregularSwaptionEngine)
+class HaganIrregularSwaptionEngine : public PricingEngine {
+  public:
+    HaganIrregularSwaptionEngine(const Handle<SwaptionVolatilityStructure>& v,
+								 const Handle<YieldTermStructure> & discountCurve);
 };
 
 #endif

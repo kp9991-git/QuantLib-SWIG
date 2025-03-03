@@ -226,7 +226,7 @@ class SwaptionVolatilityStructure : public VolatilityTermStructure {
     SwaptionVolatilityStructure();
   public:
     Volatility volatility(const Date& start, const Period& length,
-                          Rate strike, bool extrapolate = false) const;
+                          Rate strike, bool extrapolate = false, bool spreadMode = false) const;
     Volatility volatility(Time start, Time length,
                           Rate strike, bool extrapolate = false) const;
     Real blackVariance(const Date& start, const Period& length,
