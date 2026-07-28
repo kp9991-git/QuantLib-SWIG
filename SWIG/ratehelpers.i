@@ -683,7 +683,8 @@ class IborIborBasisSwapRateHelper : public RateHelper {
                                 const ext::shared_ptr<IborIndex>& otherIndex,
                                 Handle<YieldTermStructure> discountHandle,
                                 bool bootstrapBaseCurve,
-                                std::optional<bool> useIndexedCoupons = std::nullopt);
+                                std::optional<bool> useIndexedCoupons = std::nullopt,
+                                DateGeneration::Rule rule = DateGeneration::Backward);
     ext::shared_ptr<Swap> swap();
 };
 
@@ -703,7 +704,8 @@ class OvernightIborBasisSwapRateHelper : public RateHelper {
                                      Integer paymentLag = 0,
                                      std::optional<Frequency> overnightPaymentFrequency = std::nullopt,
                                      std::optional<Frequency> iborPaymentFrequency = std::nullopt,
-                                     std::optional<bool> useIndexedCoupons = std::nullopt);
+                                     std::optional<bool> useIndexedCoupons = std::nullopt,
+                                     DateGeneration::Rule rule = DateGeneration::Backward);
     ext::shared_ptr<Swap> swap();
 };
 
