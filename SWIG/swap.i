@@ -96,6 +96,8 @@ class FixedVsFloatingSwap : public Swap {
     const DayCounter& floatingDayCount();
 
     BusinessDayConvention paymentConvention() const;
+    Integer paymentLag() const;
+    const Calendar& paymentCalendar() const;
 
     const Leg& fixedLeg();
     const Leg& floatingLeg();
@@ -278,7 +280,9 @@ class NonstandardSwap : public Swap {
                     const DayCounter &floatDayCount,
                     const bool intermediateCapitalExchange = false,
                     const bool finalCapitalExchange = false,
-                    BusinessDayConvention paymentConvention = Following);
+                    BusinessDayConvention paymentConvention = Following,
+                    Integer paymentLag = 0,
+                    Calendar paymentCalendar = Calendar());
     // Inspectors
     Type type() const;
     const std::vector<Real> &fixedNominal() const;
@@ -297,6 +301,8 @@ class NonstandardSwap : public Swap {
     const DayCounter &floatingDayCount() const;
 
     BusinessDayConvention paymentConvention() const;
+    Integer paymentLag() const;
+    const Calendar& paymentCalendar() const;
 
     const Leg &fixedLeg() const;
     const Leg &floatingLeg() const;
