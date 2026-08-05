@@ -31,6 +31,7 @@
 %include types.i
 %include vectors.i
 %include swap.i
+%include inflation.i
 
 %{
 using QuantLib::RateHelper;
@@ -40,6 +41,7 @@ using QuantLib::FuturesRateHelper;
 using QuantLib::SwapRateHelper;
 using QuantLib::BondHelper;
 using QuantLib::FixedRateBondHelper;
+using QuantLib::CPIBondHelper;
 using QuantLib::BMASwapRateHelper;
 using QuantLib::OISRateHelper;
 using QuantLib::FxSwapRateHelper;
@@ -369,6 +371,29 @@ class FixedRateBondHelper : public BondHelper {
                   const DayCounter& paymentDayCounter,
                   BusinessDayConvention paymentConvention = Following,
                   Real redemption = 100.0,
+                  const Date& issueDate = Date(),
+                  const Calendar& paymentCalendar = Calendar(),
+                  const Period& exCouponPeriod = Period(),
+                  const Calendar& exCouponCalendar = Calendar(),
+                  BusinessDayConvention exCouponConvention = Unadjusted,
+                  bool exCouponEndOfMonth = false,
+                  BondPrice::Type priceType = BondPrice::Clean);
+};
+
+%shared_ptr(CPIBondHelper)
+class CPIBondHelper : public BondHelper {
+  public:
+    CPIBondHelper(const Handle<Quote>& price,
+                  Natural settlementDays,
+                  Real faceAmount,
+                  Real baseCPI,
+                  const Period& observationLag,
+                  const ext::shared_ptr<ZeroInflationIndex>& cpiIndex,
+                  CPI::InterpolationType observationInterpolation,
+                  Schedule schedule,
+                  const std::vector<Rate>& fixedRate,
+                  const DayCounter& accrualDayCounter,
+                  BusinessDayConvention paymentConvention = Following,
                   const Date& issueDate = Date(),
                   const Calendar& paymentCalendar = Calendar(),
                   const Period& exCouponPeriod = Period(),
