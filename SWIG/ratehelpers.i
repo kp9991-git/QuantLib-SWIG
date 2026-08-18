@@ -720,7 +720,8 @@ class OvernightIborBasisSwapRateHelper : public RateHelper {
                                      DateGeneration::Rule rule = DateGeneration::Backward,
                                      RateAveraging::Type averagingMethod = RateAveraging::Compound,
                                      bool telescopicValueDates = false,
-                                     StubIndexConfig iborStubIndexConfig = StubIndexConfig());
+                                     StubIndexConfig iborStubIndexConfig = StubIndexConfig(),
+                                     bool basisOnIborLeg = false);
     ext::shared_ptr<Swap> swap();
 };
 
