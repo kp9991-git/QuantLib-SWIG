@@ -26,6 +26,7 @@
 %include interpolation.i
 %include optimizers.i
 %include null.i
+%include curvejacobian.i
 
 %{
 using QuantLib::Discount;
@@ -140,10 +141,14 @@ class Name : public YieldTermStructure {
     std::vector<std::pair<Date,Real> > nodes() const;
     #endif
 
+    export_curve_jacobian_methods
+
     void recalculate();
     void freeze();
     void unfreeze();
 };
+
+export_curve_to_jacobian_graph(Name)
 
 %enddef
 
@@ -216,41 +221,56 @@ struct _GlobalBootstrap {
     double accuracy;
     ext::shared_ptr<OptimizationMethod> optimizer;
     ext::shared_ptr<EndCriteria> endCriteria;
+    bool analyticJacobian;
     _GlobalBootstrap(double accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
-                     ext::shared_ptr<EndCriteria> endCriteria = nullptr)
-    : accuracy(accuracy), optimizer(optimizer), endCriteria(endCriteria) {}
+                     ext::shared_ptr<EndCriteria> endCriteria = nullptr,
+                     bool analyticJacobian = false)
+    : accuracy(accuracy), optimizer(optimizer), endCriteria(endCriteria),
+      analyticJacobian(analyticJacobian) {}
    _GlobalBootstrap(const std::vector<ext::shared_ptr<RateHelper> >& additionalHelpers,
                     const std::vector<Date>& additionalDates,
                     double accuracy = Null<double>(),
                     ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
-                    ext::shared_ptr<EndCriteria> endCriteria = nullptr)
+                    ext::shared_ptr<EndCriteria> endCriteria = nullptr,
+                    bool analyticJacobian = false)
    : additionalHelpers(additionalHelpers), additionalDates(additionalDates), accuracy(accuracy),
-     optimizer(optimizer), endCriteria(endCriteria) {}
+     optimizer(optimizer), endCriteria(endCriteria), analyticJacobian(analyticJacobian) {}
 };
 
 template <class Curve>
 inline typename Curve::bootstrap_type make_global_bootstrap(const _GlobalBootstrap& b) {
     if (b.additionalHelpers.empty()) {
-        return typename Curve::bootstrap_type(b.accuracy, b.optimizer, b.endCriteria);
+        return typename Curve::bootstrap_type(b.accuracy, b.optimizer, b.endCriteria,
+                                              {}, nullptr, b.analyticJacobian);
     }
     return typename Curve::bootstrap_type(b.additionalHelpers,
                                           AdditionalDates(b.additionalDates),
                                           AdditionalErrors(b.additionalHelpers),
-                                          b.accuracy, b.optimizer, b.endCriteria);
+                                          b.accuracy, b.optimizer, b.endCriteria,
+                                          nullptr, {}, nullptr, b.analyticJacobian);
 }
 %}
 
 %rename(GlobalBootstrap) _GlobalBootstrap;
 struct _GlobalBootstrap {
+    /*! The analyticJacobian flag makes the optimization use the
+        analytical Jacobian of the cost function; when set, all the
+        helpers must support the analytical machinery or an exception
+        is thrown.  A supplied optimizer must report that it consumes
+        CostFunction::jacobian(); LevenbergMarquardt must therefore be
+        constructed with useCostFunctionsJacobian=true.
+    */
     _GlobalBootstrap(doubleOrNull accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
-                     ext::shared_ptr<EndCriteria> endCriteria = nullptr);
+                     ext::shared_ptr<EndCriteria> endCriteria = nullptr,
+                     bool analyticJacobian = false);
     _GlobalBootstrap(const std::vector<ext::shared_ptr<RateHelper> >& additionalHelpers,
                      const std::vector<Date>& additionalDates,
                      doubleOrNull accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
-                     ext::shared_ptr<EndCriteria> endCriteria = nullptr);
+                     ext::shared_ptr<EndCriteria> endCriteria = nullptr,
+                     bool analyticJacobian = false);
 };
 
 
@@ -297,10 +317,14 @@ class Name : public YieldTermStructure {
     std::vector<std::pair<Date,Real> > nodes() const;
     #endif
 
+    export_curve_jacobian_methods
+
     void recalculate();
     void freeze();
     void unfreeze();
 };
+
+export_curve_to_jacobian_graph(Name)
 
 %enddef
 
@@ -364,10 +388,14 @@ class Name : public YieldTermStructure {
     std::vector<std::pair<Date,Real> > nodes() const;
     #endif
 
+    export_curve_jacobian_methods
+
     void recalculate();
     void freeze();
     void unfreeze();
 };
+
+export_curve_to_jacobian_graph(Name)
 
 %enddef
 
