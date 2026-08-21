@@ -32,7 +32,7 @@ namespace std {
 }
 
 %{
-#include <ql/termstructures/curvejacobiangraph.hpp>
+#include <ql/experimental/termstructures/curvejacobiangraph.hpp>
 
 // The C++ graph is registered with statically-typed curves, since both
 // bootstrap access and derived-curve inspection need the concrete type.
