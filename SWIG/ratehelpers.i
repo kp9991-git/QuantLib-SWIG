@@ -53,6 +53,8 @@ using QuantLib::IborIborBasisSwapRateHelper;
 using QuantLib::OvernightIborBasisSwapRateHelper;
 using QuantLib::OvernightOvernightBasisSwapRateHelper;
 using QuantLib::MultipleResetsSwapRateHelper;
+using QuantLib::QuoteSensitivities;
+using QuantLib::TermStructure;
 %}
 
 %shared_ptr(RateHelper)
@@ -66,6 +68,52 @@ class RateHelper : public Observable {
 	Date pillarDate() const;
 	Real impliedQuote() const;
 	Real quoteError() const;
+    /*! Analytical sensitivities of the implied quote to the discount
+        factors of the term structure being bootstrapped, as pairs
+        (t, dQ/dP(t)) with t measured with the term structure's day
+        counter.  An empty vector means that the analytical formulas do
+        not cover this helper, and that the curve Jacobians will fall
+        back to numerical differentiation for it.
+    */
+    std::vector<std::pair<Time,Real> > impliedQuoteSensitivities() const;
+    %extend {
+        //! whether the analytical formulas cover this helper at all
+        bool hasAnalyticQuoteSensitivities() {
+            return self->impliedQuoteSensitivitiesByCurve().available;
+        }
+        #if !defined(SWIGR)
+        /*! Analytical sensitivities of the implied quote to the
+            discount factors of the given curve --- which may be the
+            curve being bootstrapped or an exogenous discount or
+            forecast curve --- as pairs (d, dQ/dP(d)).  An empty vector
+            means that the helper does not depend on the curve, or that
+            the analytical formulas do not cover it; the two cases can
+            be told apart with hasCompleteQuoteSensitivities().
+        */
+        std::vector<std::pair<Date,Real> > impliedQuoteSensitivities(
+                              const ext::shared_ptr<YieldTermStructure>& curve) {
+            QL_REQUIRE(curve, "null curve");
+            QuoteSensitivities s = self->impliedQuoteSensitivitiesByCurve();
+            const TermStructure* id = curve.get();
+            if (!s.available || s.incomplete.count(id) != 0)
+                return {};
+            auto i = s.sensitivities.find(id);
+            if (i == s.sensitivities.end())
+                return {};
+            return i->second;
+        }
+        #endif
+        /*! whether all the contributions of the given curve to the
+            implied quote could be computed analytically
+        */
+        bool hasCompleteQuoteSensitivities(
+                              const ext::shared_ptr<YieldTermStructure>& curve) {
+            QL_REQUIRE(curve, "null curve");
+            QuoteSensitivities s = self->impliedQuoteSensitivitiesByCurve();
+            return s.available &&
+                   s.incomplete.count(static_cast<const TermStructure*>(curve.get())) == 0;
+        }
+    }
   private:
     RateHelper();
 };
