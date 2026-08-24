@@ -32,13 +32,10 @@ namespace std {
 }
 
 %{
-#include <ql/experimental/termstructures/curvejacobiangraph.hpp>
+#include <ql/experimental/termstructures/jacobian/curvejacobiangraph.hpp>
 
-// The C++ graph is registered with statically-typed curves, since both
-// bootstrap access and derived-curve inspection need the concrete type.
-// The wrappers only ever see ext::shared_ptr<YieldTermStructure>, so
-// supported exported curves register a downcasting adder here and add()
-// tries them in turn.
+// The graph needs concrete curve types, while wrappers expose base pointers.
+// Each supported type registers a downcasting adder.
 class CurveJacobianGraphProxy;
 
 typedef bool (*CurveJacobianAdder)(CurveJacobianGraphProxy&,
@@ -49,11 +46,7 @@ inline std::vector<CurveJacobianAdder>& curveJacobianAdders() {
     return adders;
 }
 
-/* Adds the registration order and the shared ownership of the curves
-   to QuantLib::CurveJacobianGraph, so that results can be returned as
-   vectors aligned with the registered curves and the curves are kept
-   alive for as long as the graph is.
-*/
+/* Keeps curves alive and records their order for vector results. */
 class CurveJacobianGraphProxy {
   public:
     void add(const ext::shared_ptr<YieldTermStructure>& curve) {
@@ -76,7 +69,7 @@ class CurveJacobianGraphProxy {
         if constexpr (QuantLib::detail::supportsCurveJacobianNode<Curve>) {
             for (auto& c : curves_) {
                 if (c.get() == curve.get())
-                    return;  // already registered; graph_.add() replaced it
+                    return;  // graph_.add() already replaced it
             }
             curves_.push_back(curve);
         } else {
@@ -106,9 +99,8 @@ class CurveJacobianGraphProxy {
     }
 
     std::map<const YieldTermStructure*, Array>
-    parRiskMap(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
-               const std::vector<Array>& nodeRisk,
-               std::vector<bool>* analyticRows = nullptr) const {
+    riskInput(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+              const std::vector<Array>& nodeRisk) const {
         QL_REQUIRE(curves.size() == nodeRisk.size(),
                    "the number of curves (" << curves.size() <<
                    ") does not match the number of node-risk vectors (" <<
@@ -123,7 +115,40 @@ class CurveJacobianGraphProxy {
                 entry->second += nodeRisk[i];
             }
         }
-        return graph_.parRisk(input, analyticRows);
+        return input;
+    }
+
+    //! converts a risk map to registration order
+    std::vector<Array>
+    ordered(const std::map<const YieldTermStructure*, Array>& risk) const {
+        std::vector<Array> result;
+        result.reserve(curves_.size());
+        for (const auto& c : curves_)
+            result.push_back(risk.at(c.get()));
+        return result;
+    }
+
+    std::map<const YieldTermStructure*, Array>
+    parRiskMap(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+               const std::vector<Array>& nodeRisk,
+               std::vector<bool>* analyticRows = nullptr) const {
+        return graph_.parRisk(riskInput(curves, nodeRisk), analyticRows);
+    }
+
+    std::map<const YieldTermStructure*, Array>
+    zeroRiskMap(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+                const std::vector<Array>& nodeRisk,
+                std::vector<bool>* analyticRows = nullptr) const {
+        return graph_.zeroRisk(riskInput(curves, nodeRisk), analyticRows);
+    }
+
+    void propagateMap(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+                      const std::vector<Array>& nodeRisk,
+                      std::map<const YieldTermStructure*, Array>* zeroRisk,
+                      std::map<const YieldTermStructure*, Array>* parRisk,
+                      std::vector<bool>* analyticRows = nullptr) const {
+        graph_.propagateNodeRisk(riskInput(curves, nodeRisk),
+                                 zeroRisk, parRisk, analyticRows);
     }
 
   private:
@@ -149,21 +174,14 @@ bool registerCurveJacobianAdder() {
 }
 %}
 
-/* Registers a piecewise curve type with CurveJacobianGraph::add().
-   Invoked by the export_piecewise_curve macros; the generated variable
-   has external linkage so that its initializer is guaranteed to run
-   when the module is loaded.
-*/
+/* Registers a piecewise curve type when the module loads. */
 %define export_curve_to_jacobian_graph(Name)
 %{
 bool Name ## _registeredWithCurveJacobianGraph = registerCurveJacobianAdder<Name>();
 %}
 %enddef
 
-/* Registers a supported concrete derived curve under a stable token name.
-   Such curves are inspected by add() but do not appear in curves() or add a
-   block to the bootstrap Jacobian system.
-*/
+/* Registers an inspectable derived curve without a bootstrap block. */
 %define export_derived_curve_to_jacobian_graph(Name,Curve)
 %{
 bool Name ## _registeredAsDerivedWithCurveJacobianGraph =
@@ -171,27 +189,14 @@ bool Name ## _registeredAsDerivedWithCurveJacobianGraph =
 %}
 %enddef
 
-/* Jacobian accessors shared by all the piecewise curves.  Expanded
-   inside the class body of the curve being exported.
-*/
+/* Adds Jacobian accessors to an exported piecewise curve. */
 %define export_curve_jacobian_methods
 %extend {
-    /*! Jacobian of the implied quotes with respect to the curve nodes.
+    /*! Jacobian of alive helper quotes with respect to free curve nodes.
 
-        Element (i,j) is the derivative of the i-th alive helper's
-        implied quote with respect to the curve value data()[j+1] (the
-        value at the reference date, data()[0], is not a free
-        variable).  Rows follow the order of the helpers as stored in
-        the curve; columns follow the curve nodes, so the matrix is
-        square.
-
-        When the curve is part of a multi-curve group or built with
-        exogenous curves, this is the partial derivative with the other
-        curves' nodes kept fixed.
-
-        Rows that could not be computed analytically fall back to
-        numerical differentiation; the flag vector, when given, reports
-        which rows were analytical.
+        Rows follow the helpers and columns follow data()[1:]. Other curves'
+        nodes are held fixed. analyticRows identifies analytical rows. The
+        remaining rows use numerical differentiation.
     */
     Matrix jacobian() {
         return self->jacobian();
@@ -200,18 +205,12 @@ bool Name ## _registeredAsDerivedWithCurveJacobianGraph =
         return self->jacobian(&analyticRows);
     }
 
-    /*! Jacobian of the curve nodes with respect to the quotes.
+    /*! Jacobian of free curve nodes with respect to helper quotes.
 
-        Element (j,i) is the derivative of the curve value data()[j+1]
-        with respect to the i-th alive helper's quote.  For a
-        stand-alone curve, this is the inverse of jacobian().
-
-        When the curve is bootstrapped jointly with other curves as
-        part of a multi-curve group (see MultiCurve), the returned
-        derivatives account for the feedback through the whole group:
-        the columns then span the quotes of all member curves --- this
-        curve's quotes first, followed by those of the other members in
-        the group's registration order.
+        This is the inverse of jacobian() for a standalone curve. For a
+        MultiCurve member, it includes feedback through the group. Columns
+        contain this curve's quotes first, followed by the other members in
+        registration order.
     */
     Matrix inverseJacobian() {
         return self->inverseJacobian();
@@ -225,24 +224,14 @@ bool Name ## _registeredAsDerivedWithCurveJacobianGraph =
 %rename(CurveJacobianGraph) CurveJacobianGraphProxy;
 class CurveJacobianGraphProxy {
   public:
-    //! cross-curve Jacobians of a set of bootstrapped curves
-    /*! Given a set of bootstrapped curves depending on each other (for
-        instance, a projection curve built with an exogenous discount
-        curve, or co-dependent curves bootstrapped jointly through
-        MultiCurve), this class provides the Jacobians of the helper
-        quotes and curve nodes across the whole set, so that a
-        sensitivity with respect to the nodes of any curve can be
-        propagated back through the curve dependencies and expressed as
-        a sensitivity with respect to the quoted instruments of any
-        curve.
-
-        Rows and columns follow the order of the alive helpers and of
-        the curve nodes (excluding the value at the reference date,
-        which is not a free variable) as stored in each curve.
+    //! cross-curve Jacobians for registered bootstrapped curves
+    /*! Tracks curve dependencies and propagates node sensitivities to helper
+        quotes. Rows follow alive helpers. Columns follow free curve nodes and
+        exclude the reference-date value.
     */
     CurveJacobianGraphProxy();
 
-    //! registers a curve; adding the same curve again replaces its entry
+    //! registers a curve and replaces any existing entry for it
     void add(const ext::shared_ptr<YieldTermStructure>& curve);
 
     //! validates all dependencies reported by registered helpers
@@ -257,13 +246,10 @@ class CurveJacobianGraphProxy {
             self->add(curve.currentLink());
         }
 
-        /*! Jacobian of the implied quotes of the first curve's helpers
-            with respect to the nodes of the second curve, all other
-            curves' nodes being kept fixed.  When the two curves
-            coincide, this is the curve's own Jacobian.  Rows that could
-            not be computed analytically fall back to numerical
-            differentiation; the flag vector, when given, reports which
-            rows were analytical.
+        /*! Jacobian of the first curve's helper quotes with respect to the
+            second curve's nodes. Other curve nodes are held fixed. Equal
+            curves give the local Jacobian. analyticRows identifies rows that
+            did not require numerical differentiation.
         */
         Matrix crossJacobian(const ext::shared_ptr<YieldTermStructure>& of,
                              const ext::shared_ptr<YieldTermStructure>& withRespectTo) {
@@ -275,11 +261,9 @@ class CurveJacobianGraphProxy {
             return self->crossJacobian(of, withRespectTo, &analyticRows);
         }
 
-        /*! Jacobian of the nodes of the first curve with respect to the
-            quotes of the second curve's helpers, obtained by solving
-            the differentiated bootstrap conditions of all registered
-            curves at once.  Co-dependent (cyclical) sets of curves are
-            handled naturally.
+        /*! Jacobian of the first curve's nodes with respect to the second
+            curve's helper quotes. It solves the differentiated bootstrap
+            system for all registered curves, including dependency cycles.
         */
         Matrix nodeQuoteJacobian(const ext::shared_ptr<YieldTermStructure>& of,
                                  const ext::shared_ptr<YieldTermStructure>& withRespectTo) {
@@ -291,40 +275,85 @@ class CurveJacobianGraphProxy {
             return self->nodeQuoteJacobian(of, withRespectTo, &analyticRows);
         }
 
-        /*! Propagates sensitivities with respect to curve nodes (for
-            instance, obtained by repricing a trade under bumps of the
-            node values) into sensitivities with respect to the helper
-            quotes of every registered curve.  The given curves must be
-            registered and each node-risk vector must have one entry per
-            node of the corresponding curve.  Repeated curve entries are
-            summed.  The results are returned in the order given by curves().
+        /*! Converts curve-node sensitivities to helper-quote sensitivities.
+            Input curves must be registered. Each risk vector must match its
+            curve's free nodes. Repeated curves are summed. Results follow
+            curves().
         */
         std::vector<Array>
         parRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                 const std::vector<Array>& nodeRisk) {
-            std::map<const YieldTermStructure*, Array> risk =
-                self->parRiskMap(curves, nodeRisk);
-            std::vector<Array> result;
-            result.reserve(self->curves().size());
-            for (const auto& c : self->curves())
-                result.push_back(risk.at(c.get()));
-            return result;
+            return self->ordered(self->parRiskMap(curves, nodeRisk));
         }
 
         std::vector<Array>
         parRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                 const std::vector<Array>& nodeRisk,
                 std::vector<bool>& analyticRows) {
-            std::map<const YieldTermStructure*, Array> risk =
-                self->parRiskMap(curves, nodeRisk, &analyticRows);
-            std::vector<Array> result;
-            result.reserve(self->curves().size());
-            for (const auto& c : self->curves())
-                result.push_back(risk.at(c.get()));
-            return result;
+            return self->ordered(
+                self->parRiskMap(curves, nodeRisk, &analyticRows));
         }
 
-        //! par risk on one registered curve; see the overload above
+        /*! Propagates node sensitivities through curve dependencies. Base
+            curves inherit downstream risk while terminal curves retain their
+            input risk. Downstream helper quotes are held fixed. Solving with
+            each curve's bootstrap block converts zero risk to par risk.
+            Inputs and results follow parRisk().
+        */
+        std::vector<Array>
+        zeroRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+                 const std::vector<Array>& nodeRisk) {
+            return self->ordered(self->zeroRiskMap(curves, nodeRisk));
+        }
+
+        std::vector<Array>
+        zeroRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+                 const std::vector<Array>& nodeRisk,
+                 std::vector<bool>& analyticRows) {
+            return self->ordered(
+                self->zeroRiskMap(curves, nodeRisk, &analyticRows));
+        }
+
+        //! zero risk on one registered curve
+        Array zeroRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+                       const std::vector<Array>& nodeRisk,
+                       const ext::shared_ptr<YieldTermStructure>& onCurve) {
+            QL_REQUIRE(onCurve, "null curve");
+            std::map<const YieldTermStructure*, Array> risk =
+                self->zeroRiskMap(curves, nodeRisk);
+            auto i = risk.find(onCurve.get());
+            QL_REQUIRE(i != risk.end(),
+                       "the given curve was not added to the graph");
+            return i->second;
+        }
+
+        /*! Computes zero and par risk in one propagation. Results contain one
+            entry per registered curve and follow curves().
+        */
+        void propagateRisk(
+                const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+                const std::vector<Array>& nodeRisk,
+                std::vector<Array>& zeroRisk,
+                std::vector<Array>& parRisk) {
+            std::map<const YieldTermStructure*, Array> z, p;
+            self->propagateMap(curves, nodeRisk, &z, &p);
+            zeroRisk = self->ordered(z);
+            parRisk = self->ordered(p);
+        }
+
+        void propagateRisk(
+                const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+                const std::vector<Array>& nodeRisk,
+                std::vector<Array>& zeroRisk,
+                std::vector<Array>& parRisk,
+                std::vector<bool>& analyticRows) {
+            std::map<const YieldTermStructure*, Array> z, p;
+            self->propagateMap(curves, nodeRisk, &z, &p, &analyticRows);
+            zeroRisk = self->ordered(z);
+            parRisk = self->ordered(p);
+        }
+
+        //! par risk on one registered curve
         Array parRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                       const std::vector<Array>& nodeRisk,
                       const ext::shared_ptr<YieldTermStructure>& onCurve) {

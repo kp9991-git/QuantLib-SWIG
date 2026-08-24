@@ -254,12 +254,10 @@ inline typename Curve::bootstrap_type make_global_bootstrap(const _GlobalBootstr
 
 %rename(GlobalBootstrap) _GlobalBootstrap;
 struct _GlobalBootstrap {
-    /*! The analyticJacobian flag makes the optimization use the
-        analytical Jacobian of the cost function; when set, all the
-        helpers must support the analytical machinery or an exception
-        is thrown.  A supplied optimizer must report that it consumes
-        CostFunction::jacobian(); LevenbergMarquardt must therefore be
-        constructed with useCostFunctionsJacobian=true.
+    /*! analyticJacobian uses the analytical cost-function Jacobian. All
+        helpers must support it. A custom optimizer must consume
+        CostFunction::jacobian(). LevenbergMarquardt requires
+        useCostFunctionsJacobian=true.
     */
     _GlobalBootstrap(doubleOrNull accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,

@@ -286,8 +286,8 @@ class CurveJacobianTest(unittest.TestCase):
         analytic = ql.BoolVector()
         cross = graph.crossJacobian(projection, ois, analytic)
         self.assertEqual(cross.rows(), len(analytic))
-        # The deposit row has no discount-curve dependence; swap rows follow
-        # the wrapper numerically.
+        # The deposit row has no discount-curve dependence.
+        # Swap rows follow the wrapper numerically.
         self.assertTrue(analytic[0])
         self.assertFalse(any(analytic[1:]))
 
