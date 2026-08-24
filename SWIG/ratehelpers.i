@@ -68,27 +68,21 @@ class RateHelper : public Observable {
 	Date pillarDate() const;
 	Real impliedQuote() const;
 	Real quoteError() const;
-    /*! Analytical sensitivities of the implied quote to the discount
-        factors of the term structure being bootstrapped, as pairs
-        (t, dQ/dP(t)) with t measured with the term structure's day
-        counter.  An empty vector means that the analytical formulas do
-        not cover this helper, and that the curve Jacobians will fall
-        back to numerical differentiation for it.
+    /*! Implied-quote sensitivities to the bootstrapped discount factors as
+        (t, dQ/dP(t)) pairs. Time uses the curve's day counter. An empty result
+        triggers numerical differentiation.
     */
     std::vector<std::pair<Time,Real> > impliedQuoteSensitivities() const;
     %extend {
-        //! whether the analytical formulas cover this helper at all
+        //! whether analytical quote sensitivities are available
         bool hasAnalyticQuoteSensitivities() {
             return self->impliedQuoteSensitivitiesByCurve().available;
         }
         #if !defined(SWIGR)
-        /*! Analytical sensitivities of the implied quote to the
-            discount factors of the given curve --- which may be the
-            curve being bootstrapped or an exogenous discount or
-            forecast curve --- as pairs (d, dQ/dP(d)).  An empty vector
-            means that the helper does not depend on the curve, or that
-            the analytical formulas do not cover it; the two cases can
-            be told apart with hasCompleteQuoteSensitivities().
+        /*! Implied-quote sensitivities to the given curve's discount factors
+            as (d, dQ/dP(d)) pairs. An empty result means either no dependency
+            or incomplete analytical support. hasCompleteQuoteSensitivities()
+            distinguishes the cases.
         */
         std::vector<std::pair<Date,Real> > impliedQuoteSensitivities(
                               const ext::shared_ptr<YieldTermStructure>& curve) {
@@ -103,9 +97,7 @@ class RateHelper : public Observable {
             return i->second;
         }
         #endif
-        /*! whether all the contributions of the given curve to the
-            implied quote could be computed analytically
-        */
+        //! whether all contributions from the curve are analytical
         bool hasCompleteQuoteSensitivities(
                               const ext::shared_ptr<YieldTermStructure>& curve) {
             QL_REQUIRE(curve, "null curve");

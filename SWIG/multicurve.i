@@ -30,11 +30,9 @@ using QuantLib::MultiCurve;
 %shared_ptr(MultiCurve);
 class MultiCurve {
   public:
-    /*! The analyticJacobian flag makes the joint optimization use the
-        analytical Jacobian of the stacked cost function; when set, all
-        member curves must support the analytical machinery or an
-        exception is thrown.  A supplied optimizer must also consume
-        CostFunction::jacobian().
+    /*! analyticJacobian uses the analytical Jacobian of the stacked cost
+        function. All member curves must support it. A custom optimizer must
+        consume CostFunction::jacobian().
     */
     explicit MultiCurve(Real accuracy, bool analyticJacobian = false);
     explicit MultiCurve(const ext::shared_ptr<OptimizationMethod>& optimizer = nullptr,

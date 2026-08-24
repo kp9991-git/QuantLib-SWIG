@@ -276,19 +276,13 @@ inline typename Curve::bootstrap_type make_global_bootstrap(const _GlobalBootstr
 
 %rename(GlobalBootstrap) _GlobalBootstrap;
 struct _GlobalBootstrap {
-    /*! The analyticJacobian flag makes the optimization use the
-        analytical Jacobian of the cost function; when set, all the
-        helpers must support the analytical machinery or an exception
-        is thrown.  A supplied optimizer must report that it consumes
-        CostFunction::jacobian(); LevenbergMarquardt must therefore be
-        constructed with useCostFunctionsJacobian=true.
+    /*! analyticJacobian uses the analytical cost-function Jacobian. All
+        helpers must support it. A custom optimizer must consume
+        CostFunction::jacobian(). LevenbergMarquardt requires
+        useCostFunctionsJacobian=true.
 
-        initialGuess, when non-empty, seeds every solve of the curve
-        (first and repeated) instead of QuantLib's flat seed or the
-        curve's own previous solution: one value per pillar, in the
-        traits' data space (zero rates for a zero-yield curve, discount
-        factors for a discount curve, forwards for a forward curve).
-        A size mismatch with the curve's pillars throws at solve time.
+        A non-empty initialGuess seeds every solve with one value per pillar
+        in the traits' data space. A size mismatch throws at solve time.
     */
     _GlobalBootstrap(doubleOrNull accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
