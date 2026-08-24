@@ -294,10 +294,10 @@ class CurveJacobianGraphProxy {
                 self->parRiskMap(curves, nodeRisk, &analyticRows));
         }
 
-        /*! Propagates node sensitivities through curve dependencies. Base
-            curves inherit downstream risk while terminal curves retain their
-            input risk. Downstream helper quotes are held fixed. Solving with
-            each curve's bootstrap block converts zero risk to par risk.
+        /*! Propagates node sensitivities through curve dependencies. Zero risk
+            fixes each curve while the others rebootstrap. The curve's bootstrap
+            block converts zero risk to par risk only for acyclic dependencies.
+            Cyclic components require a reduced solve.
             Inputs and results follow parRisk().
         */
         std::vector<Array>
