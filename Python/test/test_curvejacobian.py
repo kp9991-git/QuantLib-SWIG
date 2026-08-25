@@ -44,7 +44,7 @@ class CurveJacobianTest(unittest.TestCase):
         self.today = ql.Date(23, ql.October, 2025)
         ql.Settings.instance().evaluationDate = self.today
 
-    def build_ois_curve(self):
+    def build_ois_curve(self, curve_type=ql.PiecewiseLogLinearDiscount):
         """ESTR OIS curve, discounting itself."""
         quotes, helpers = [], []
         estr = ql.Estr()
@@ -56,7 +56,7 @@ class CurveJacobianTest(unittest.TestCase):
                 ql.OISRateHelper(2, ql.Period(months, ql.Months),
                                  ql.QuoteHandle(q), estr)
             )
-        curve = ql.PiecewiseLogLinearDiscount(
+        curve = curve_type(
             0, ql.TARGET(), helpers, ql.Actual360()
         )
         return curve, quotes, helpers
@@ -195,6 +195,66 @@ class CurveJacobianTest(unittest.TestCase):
                             msg="node %d of curve %d vs quote %d of the %s "
                                 "curve" % (j, c, k, name),
                         )
+
+    def test_zero_node_transformations(self):
+        """Continuous-zero and stored-node Jacobians are mutual inverses."""
+        for curve_type, expected_analytic in (
+            (ql.PiecewiseLogLinearDiscount, True),
+            (ql.PiecewiseLinearZero, True),
+            (ql.PiecewiseLinearForward, False),
+        ):
+            curve, quotes, _ = self.build_ois_curve(curve_type)
+            curve.enableExtrapolation()
+            graph = ql.CurveJacobianGraph()
+            graph.add(curve)
+
+            analytic = ql.BoolVector()
+            zero_node = graph.zeroNodeJacobian(curve, analytic)
+            node_zero = graph.nodeZeroJacobian(curve)
+            nodes = len(curve.data()) - 1
+            self.assertEqual(zero_node.rows(), nodes)
+            self.assertEqual(zero_node.columns(), nodes)
+            self.assertEqual(len(analytic), nodes)
+            self.assertTrue(all(flag == expected_analytic for flag in analytic))
+
+            identity = zero_node * node_zero
+            for i in range(nodes):
+                for j in range(nodes):
+                    self.assertAlmostEqual(
+                        identity[i][j], 1.0 if i == j else 0.0,
+                        delta=1.0e-8,
+                    )
+
+            node_quote = graph.nodeQuoteJacobian(curve, curve)
+            dates = list(curve.dates())[1:]
+            for k, quote in enumerate(quotes):
+                value = quote.value()
+                quote.setValue(value + BUMP)
+                up = [
+                    curve.zeroRate(
+                        d, ql.Actual360(), ql.Continuous,
+                        ql.NoFrequency, True,
+                    ).rate()
+                    for d in dates
+                ]
+                quote.setValue(value - BUMP)
+                down = [
+                    curve.zeroRate(
+                        d, ql.Actual360(), ql.Continuous,
+                        ql.NoFrequency, True,
+                    ).rate()
+                    for d in dates
+                ]
+                quote.setValue(value)
+                curve.data()
+
+                for i in range(nodes):
+                    expected = (up[i] - down[i]) / (2.0 * BUMP)
+                    calculated = sum(
+                        zero_node[i][j] * node_quote[j][k]
+                        for j in range(nodes)
+                    )
+                    self.assertAlmostEqual(calculated, expected, delta=2.0e-5)
 
     def test_par_risk_propagates_across_curves(self):
         """Node risk on one curve becomes par risk on every curve."""

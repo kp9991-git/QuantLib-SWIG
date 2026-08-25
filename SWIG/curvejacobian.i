@@ -98,6 +98,18 @@ class CurveJacobianGraphProxy {
         return graph_.nodeQuoteJacobian(*of, *withRespectTo, analyticRows);
     }
 
+    Matrix zeroNodeJacobian(const ext::shared_ptr<YieldTermStructure>& curve,
+                            std::vector<bool>* analyticRows = nullptr) const {
+        QL_REQUIRE(curve, "null curve");
+        return graph_.zeroNodeJacobian(*curve, analyticRows);
+    }
+
+    Matrix nodeZeroJacobian(const ext::shared_ptr<YieldTermStructure>& curve,
+                            std::vector<bool>* analyticRows = nullptr) const {
+        QL_REQUIRE(curve, "null curve");
+        return graph_.nodeZeroJacobian(*curve, analyticRows);
+    }
+
     std::map<const YieldTermStructure*, Array>
     riskInput(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
               const std::vector<Array>& nodeRisk) const {
@@ -273,6 +285,32 @@ class CurveJacobianGraphProxy {
                                  const ext::shared_ptr<YieldTermStructure>& withRespectTo,
                                  std::vector<bool>& analyticRows) {
             return self->nodeQuoteJacobian(of, withRespectTo, &analyticRows);
+        }
+
+        /*! Jacobian of continuously compounded zero rates at a curve's node
+            dates with respect to its free stored nodes.
+        */
+        Matrix zeroNodeJacobian(
+                const ext::shared_ptr<YieldTermStructure>& curve) {
+            return self->zeroNodeJacobian(curve);
+        }
+        Matrix zeroNodeJacobian(
+                const ext::shared_ptr<YieldTermStructure>& curve,
+                std::vector<bool>& analyticRows) {
+            return self->zeroNodeJacobian(curve, &analyticRows);
+        }
+
+        /*! Jacobian of a curve's free stored nodes with respect to
+            continuously compounded zero rates at its node dates.
+        */
+        Matrix nodeZeroJacobian(
+                const ext::shared_ptr<YieldTermStructure>& curve) {
+            return self->nodeZeroJacobian(curve);
+        }
+        Matrix nodeZeroJacobian(
+                const ext::shared_ptr<YieldTermStructure>& curve,
+                std::vector<bool>& analyticRows) {
+            return self->nodeZeroJacobian(curve, &analyticRows);
         }
 
         /*! Converts curve-node sensitivities to helper-quote sensitivities.
