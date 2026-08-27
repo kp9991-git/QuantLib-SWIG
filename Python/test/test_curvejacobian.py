@@ -311,8 +311,8 @@ class CurveJacobianTest(unittest.TestCase):
                 self.assertAlmostEqual(doubled[c][k], 2.0 * risk[c][k],
                                        delta=1.0e-12)
 
-    def test_dependency_validation_rejects_missing_build_layer(self):
-        """Every terminal build layer must be a registered risk curve."""
+    def test_closed_dependency_check_rejects_missing_build_layer(self):
+        """The optional closure diagnostic reports an omitted build layer."""
         flat = ql.FlatForward(
             self.today, ql.QuoteHandle(ql.SimpleQuote(0.02)), ql.Actual360()
         )
@@ -322,7 +322,7 @@ class CurveJacobianTest(unittest.TestCase):
         self.assertFalse(hasattr(graph, "addConstant"))
         graph.add(projection)
         with self.assertRaises(RuntimeError):
-            graph.validateDependencies()
+            graph.checkClosedDependencySet()
 
     def test_supported_derived_curve_is_inspected_by_add(self):
         """add() records a derived curve exposing baseCurve()."""
@@ -338,10 +338,21 @@ class CurveJacobianTest(unittest.TestCase):
         graph.add(ois)
         graph.add(projection)
         with self.assertRaises(RuntimeError):
-            graph.crossJacobian(projection, ois)
+            graph.checkClosedDependencySet()
+
+        open_analytic = ql.BoolVector()
+        open_cross = graph.crossJacobian(projection, ois, open_analytic)
+        self.assertEqual(open_cross.rows(), len(open_analytic))
+        self.assertTrue(open_analytic[0])
+        self.assertFalse(any(open_analytic[1:]))
+
+        node_risk = ql.Array(len(projection.data()) - 1)
+        for j in range(len(node_risk)):
+            node_risk[j] = 1.0 + j
+        open_risk = graph.parRisk([projection], [node_risk])
 
         graph.add(wrapper)
-        graph.validateDependencies(True)
+        graph.checkClosedDependencySet()
         self.assertEqual(len(graph.curves()), 2)
         analytic = ql.BoolVector()
         cross = graph.crossJacobian(projection, ois, analytic)
@@ -350,6 +361,12 @@ class CurveJacobianTest(unittest.TestCase):
         # Swap rows follow the wrapper numerically.
         self.assertTrue(analytic[0])
         self.assertFalse(any(analytic[1:]))
+
+        closed_risk = graph.parRisk([projection], [node_risk])
+        for c in range(len(open_risk)):
+            for k in range(len(open_risk[c])):
+                self.assertAlmostEqual(open_risk[c][k], closed_risk[c][k],
+                                       delta=1.0e-10)
 
     def test_opaque_derived_curve_is_not_supported(self):
         """Derived curves without an underlying-curve getter are rejected."""
@@ -386,7 +403,7 @@ class CurveJacobianTest(unittest.TestCase):
         graph = ql.CurveJacobianGraph()
         graph.add(base)
         graph.add(spread)
-        graph.validateDependencies(True)
+        graph.checkClosedDependencySet()
 
         analytic = ql.BoolVector()
         cross = graph.crossJacobian(spread, base, analytic)
@@ -417,7 +434,7 @@ class CurveJacobianTest(unittest.TestCase):
         # base -> spread -> projection dependency chain.
         projection, _, _ = self.build_projection_curve(spread)
         graph.add(projection)
-        graph.validateDependencies(True)
+        graph.checkClosedDependencySet()
         layered_analytic = ql.BoolVector()
         layered = graph.nodeQuoteJacobian(projection, base, layered_analytic)
         self.assertTrue(all(layered_analytic))

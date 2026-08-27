@@ -59,8 +59,8 @@ class CurveJacobianGraphProxy {
                 "bootstrap Jacobians or expose their underlying curve to C++");
     }
 
-    void validateDependencies(bool requireAnalyticMetadata = false) const {
-        graph_.validateDependencies(requireAnalyticMetadata);
+    void checkClosedDependencySet() const {
+        graph_.checkClosedDependencySet();
     }
 
     template <class Curve>
@@ -246,8 +246,7 @@ class CurveJacobianGraphProxy {
     //! registers a curve and replaces any existing entry for it
     void add(const ext::shared_ptr<YieldTermStructure>& curve);
 
-    //! validates all dependencies reported by registered helpers
-    void validateDependencies(bool requireAnalyticMetadata = false) const;
+    void checkClosedDependencySet() const;
 
     //! the registered curves, in registration order
     std::vector<ext::shared_ptr<YieldTermStructure> > curves() const;
