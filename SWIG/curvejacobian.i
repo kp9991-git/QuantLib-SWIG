@@ -59,10 +59,6 @@ class CurveJacobianGraphProxy {
                 "bootstrap Jacobians or expose their underlying curve to C++");
     }
 
-    void validateDependencies(bool requireAnalyticMetadata = false) const {
-        graph_.validateDependencies(requireAnalyticMetadata);
-    }
-
     template <class Curve>
     void addCurve(const ext::shared_ptr<Curve>& curve) {
         graph_.add(curve);
@@ -110,8 +106,8 @@ class CurveJacobianGraphProxy {
         return graph_.nodeZeroJacobian(*curve, analyticRows);
     }
 
-    std::map<const YieldTermStructure*, Array>
-    riskInput(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+    std::map<const YieldTermStructure*, Array> riskInput(
+        const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
               const std::vector<Array>& nodeRisk) const {
         QL_REQUIRE(curves.size() == nodeRisk.size(),
                    "the number of curves (" << curves.size() <<
@@ -131,8 +127,8 @@ class CurveJacobianGraphProxy {
     }
 
     //! converts a risk map to registration order
-    std::vector<Array>
-    ordered(const std::map<const YieldTermStructure*, Array>& risk) const {
+    std::vector<Array> ordered(
+        const std::map<const YieldTermStructure*, Array>& risk) const {
         std::vector<Array> result;
         result.reserve(curves_.size());
         for (const auto& c : curves_)
@@ -140,15 +136,15 @@ class CurveJacobianGraphProxy {
         return result;
     }
 
-    std::map<const YieldTermStructure*, Array>
-    parRiskMap(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+    std::map<const YieldTermStructure*, Array> parRiskMap(
+        const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                const std::vector<Array>& nodeRisk,
                std::vector<bool>* analyticRows = nullptr) const {
         return graph_.parRisk(riskInput(curves, nodeRisk), analyticRows);
     }
 
-    std::map<const YieldTermStructure*, Array>
-    zeroRiskMap(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+    std::map<const YieldTermStructure*, Array> zeroRiskMap(
+        const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                 const std::vector<Array>& nodeRisk,
                 std::vector<bool>* analyticRows = nullptr) const {
         return graph_.zeroRisk(riskInput(curves, nodeRisk), analyticRows);
@@ -246,9 +242,6 @@ class CurveJacobianGraphProxy {
     //! registers a curve and replaces any existing entry for it
     void add(const ext::shared_ptr<YieldTermStructure>& curve);
 
-    //! validates all dependencies reported by registered helpers
-    void validateDependencies(bool requireAnalyticMetadata = false) const;
-
     //! the registered curves, in registration order
     std::vector<ext::shared_ptr<YieldTermStructure> > curves() const;
 
@@ -318,14 +311,14 @@ class CurveJacobianGraphProxy {
             curve's free nodes. Repeated curves are summed. Results follow
             curves().
         */
-        std::vector<Array>
-        parRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+        std::vector<Array> parRisk(
+            const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                 const std::vector<Array>& nodeRisk) {
             return self->ordered(self->parRiskMap(curves, nodeRisk));
         }
 
-        std::vector<Array>
-        parRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+        std::vector<Array> parRisk(
+            const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                 const std::vector<Array>& nodeRisk,
                 std::vector<bool>& analyticRows) {
             return self->ordered(
@@ -338,14 +331,14 @@ class CurveJacobianGraphProxy {
             Cyclic components require a reduced solve.
             Inputs and results follow parRisk().
         */
-        std::vector<Array>
-        zeroRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+        std::vector<Array> zeroRisk(
+            const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                  const std::vector<Array>& nodeRisk) {
             return self->ordered(self->zeroRiskMap(curves, nodeRisk));
         }
 
-        std::vector<Array>
-        zeroRisk(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
+        std::vector<Array> zeroRisk(
+            const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                  const std::vector<Array>& nodeRisk,
                  std::vector<bool>& analyticRows) {
             return self->ordered(
