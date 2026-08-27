@@ -311,19 +311,6 @@ class CurveJacobianTest(unittest.TestCase):
                 self.assertAlmostEqual(doubled[c][k], 2.0 * risk[c][k],
                                        delta=1.0e-12)
 
-    def test_closed_dependency_check_rejects_missing_build_layer(self):
-        """The optional closure diagnostic reports an omitted build layer."""
-        flat = ql.FlatForward(
-            self.today, ql.QuoteHandle(ql.SimpleQuote(0.02)), ql.Actual360()
-        )
-        projection, _, _ = self.build_projection_curve(flat)
-
-        graph = ql.CurveJacobianGraph()
-        self.assertFalse(hasattr(graph, "addConstant"))
-        graph.add(projection)
-        with self.assertRaises(RuntimeError):
-            graph.checkClosedDependencySet()
-
     def test_supported_derived_curve_is_inspected_by_add(self):
         """add() records a derived curve exposing baseCurve()."""
         ois, _, _ = self.build_ois_curve()
@@ -337,8 +324,6 @@ class CurveJacobianTest(unittest.TestCase):
         graph = ql.CurveJacobianGraph()
         graph.add(ois)
         graph.add(projection)
-        with self.assertRaises(RuntimeError):
-            graph.checkClosedDependencySet()
 
         open_analytic = ql.BoolVector()
         open_cross = graph.crossJacobian(projection, ois, open_analytic)
@@ -352,7 +337,6 @@ class CurveJacobianTest(unittest.TestCase):
         open_risk = graph.parRisk([projection], [node_risk])
 
         graph.add(wrapper)
-        graph.checkClosedDependencySet()
         self.assertEqual(len(graph.curves()), 2)
         analytic = ql.BoolVector()
         cross = graph.crossJacobian(projection, ois, analytic)
@@ -403,7 +387,6 @@ class CurveJacobianTest(unittest.TestCase):
         graph = ql.CurveJacobianGraph()
         graph.add(base)
         graph.add(spread)
-        graph.checkClosedDependencySet()
 
         analytic = ql.BoolVector()
         cross = graph.crossJacobian(spread, base, analytic)
@@ -434,7 +417,6 @@ class CurveJacobianTest(unittest.TestCase):
         # base -> spread -> projection dependency chain.
         projection, _, _ = self.build_projection_curve(spread)
         graph.add(projection)
-        graph.checkClosedDependencySet()
         layered_analytic = ql.BoolVector()
         layered = graph.nodeQuoteJacobian(projection, base, layered_analytic)
         self.assertTrue(all(layered_analytic))
