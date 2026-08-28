@@ -671,7 +671,8 @@ class ConstNotionalCrossCurrencySwapRateHelper : public RateHelper {
                                              bool collateralOnFixedLeg,
                                              Integer paymentLag = 0,
                                              std::optional<bool> useIndexedCoupons = std::nullopt,
-                                             std::optional<Frequency> floatPaymentFrequency = std::nullopt);
+                                             std::optional<Frequency> floatPaymentFrequency = std::nullopt,
+                                             StubIndexConfig floatStubIndexConfig = StubIndexConfig());
     const ext::shared_ptr<ConstNotionalCrossCurrencyFixedVsFloatingSwap>& swap() const;
 };
 
@@ -696,7 +697,9 @@ class ConstNotionalCrossCurrencyBasisSwapRateHelper : public RateHelper {
                                                   Integer paymentLag = 0,
                                                   Frequency quoteCurrencyPaymentFrequency = NoFrequency,
                                                   std::optional<bool> useIndexedCoupons = std::nullopt,
-                                                  bool paymentLagOnNotionalExchanges = false);
+                                                  bool paymentLagOnNotionalExchanges = false,
+                                                  StubIndexConfig baseStubIndexConfig = StubIndexConfig(),
+                                                  StubIndexConfig quoteStubIndexConfig = StubIndexConfig());
     const ext::shared_ptr<ConstNotionalCrossCurrencyBasisSwap>& swap() const;
 };
 
@@ -723,7 +726,9 @@ class MtMCrossCurrencyBasisSwapRateHelper : public RateHelper {
                                         Frequency quoteCurrencyPaymentFrequency = NoFrequency,
                                         Natural fxResetFixingDays = 0,
                                         Calendar fxResetFixingCalendar = Calendar(),
-                                        std::optional<bool> useIndexedCoupons = std::nullopt);
+                                        std::optional<bool> useIndexedCoupons = std::nullopt,
+                                        StubIndexConfig baseStubIndexConfig = StubIndexConfig(),
+                                        StubIndexConfig quoteStubIndexConfig = StubIndexConfig());
     const ext::shared_ptr<MtMCrossCurrencyBasisSwap>& swap() const;
     Natural fxResetFixingDays() const;
     const Calendar& fxResetFixingCalendar() const;
@@ -747,7 +752,9 @@ class IborIborBasisSwapRateHelper : public RateHelper {
                                 bool bootstrapBaseCurve,
                                 std::optional<bool> useIndexedCoupons = std::nullopt,
                                 DateGeneration::Rule rule = DateGeneration::Backward,
-                                Integer paymentLag = 0);
+                                Integer paymentLag = 0,
+                                StubIndexConfig baseStubIndexConfig = StubIndexConfig(),
+                                StubIndexConfig otherStubIndexConfig = StubIndexConfig());
     ext::shared_ptr<Swap> swap();
 };
 
@@ -773,7 +780,8 @@ class OvernightIborBasisSwapRateHelper : public RateHelper {
                                      DateGeneration::Rule rule = DateGeneration::Backward,
                                      RateAveraging::Type averagingMethod = RateAveraging::Compound,
                                      bool telescopicValueDates = false,
-                                     bool basisOnIborLeg = false);
+                                     bool basisOnIborLeg = false,
+                                     StubIndexConfig iborStubIndexConfig = StubIndexConfig());
     ext::shared_ptr<Swap> swap();
 };
 
