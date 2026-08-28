@@ -33,6 +33,7 @@ using QuantLib::Discount;
 using QuantLib::ZeroYield;
 using QuantLib::ForwardRate;
 using QuantLib::PiecewiseYieldCurve;
+using QuantLib::SimpleZeroYield;
 %}
 
 %{
@@ -153,6 +154,7 @@ export_curve_to_jacobian_graph(Name)
 %enddef
 
 
+export_piecewise_curve(PiecewiseLinearSimpleZero,SimpleZeroYield,Linear);
 export_piecewise_curve(PiecewiseFlatForward,ForwardRate,BackwardFlat);
 export_piecewise_curve(PiecewiseLogLinearDiscount,Discount,LogLinear);
 export_piecewise_curve(PiecewiseLinearForward,ForwardRate,Linear);
@@ -222,33 +224,53 @@ struct _GlobalBootstrap {
     ext::shared_ptr<OptimizationMethod> optimizer;
     ext::shared_ptr<EndCriteria> endCriteria;
     bool analyticJacobian;
+    std::vector<Real> initialGuess;
     _GlobalBootstrap(double accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
                      ext::shared_ptr<EndCriteria> endCriteria = nullptr,
-                     bool analyticJacobian = false)
+                     bool analyticJacobian = false,
+                     const std::vector<Real>& initialGuess = std::vector<Real>())
     : accuracy(accuracy), optimizer(optimizer), endCriteria(endCriteria),
-      analyticJacobian(analyticJacobian) {}
+      analyticJacobian(analyticJacobian), initialGuess(initialGuess) {}
    _GlobalBootstrap(const std::vector<ext::shared_ptr<RateHelper> >& additionalHelpers,
                     const std::vector<Date>& additionalDates,
                     double accuracy = Null<double>(),
                     ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
                     ext::shared_ptr<EndCriteria> endCriteria = nullptr,
-                    bool analyticJacobian = false)
+                    bool analyticJacobian = false,
+                    const std::vector<Real>& initialGuess = std::vector<Real>())
    : additionalHelpers(additionalHelpers), additionalDates(additionalDates), accuracy(accuracy),
-     optimizer(optimizer), endCriteria(endCriteria), analyticJacobian(analyticJacobian) {}
+     optimizer(optimizer), endCriteria(endCriteria), analyticJacobian(analyticJacobian),
+     initialGuess(initialGuess) {}
 };
+
+typedef std::function<Array(const std::vector<Time>&, const std::vector<Real>&)>
+    GlobalBootstrapInitialGuessFn;
+
+inline GlobalBootstrapInitialGuessFn make_initial_guess_fn(const std::vector<Real>& seed) {
+    if (seed.empty())
+        return nullptr;
+    return [seed](const std::vector<Time>& times, const std::vector<Real>&) {
+        QL_REQUIRE(!times.empty() && seed.size() == times.size() - 1,
+                   "initial guess has " << seed.size() << " values but the curve has "
+                   << (times.empty() ? 0 : times.size() - 1) << " pillars");
+        return Array(seed.begin(), seed.end());
+    };
+}
 
 template <class Curve>
 inline typename Curve::bootstrap_type make_global_bootstrap(const _GlobalBootstrap& b) {
     if (b.additionalHelpers.empty()) {
         return typename Curve::bootstrap_type(b.accuracy, b.optimizer, b.endCriteria,
-                                              {}, nullptr, b.analyticJacobian);
+                                              {}, make_initial_guess_fn(b.initialGuess),
+                                              b.analyticJacobian);
     }
     return typename Curve::bootstrap_type(b.additionalHelpers,
                                           AdditionalDates(b.additionalDates),
                                           AdditionalErrors(b.additionalHelpers),
                                           b.accuracy, b.optimizer, b.endCriteria,
-                                          nullptr, {}, nullptr, b.analyticJacobian);
+                                          nullptr, {}, make_initial_guess_fn(b.initialGuess),
+                                          b.analyticJacobian);
 }
 %}
 
@@ -258,17 +280,22 @@ struct _GlobalBootstrap {
         helpers must support it. A custom optimizer must consume
         CostFunction::jacobian(). LevenbergMarquardt requires
         useCostFunctionsJacobian=true.
+
+        A non-empty initialGuess seeds every solve with one value per pillar
+        in the traits' data space. A size mismatch throws at solve time.
     */
     _GlobalBootstrap(doubleOrNull accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
                      ext::shared_ptr<EndCriteria> endCriteria = nullptr,
-                     bool analyticJacobian = false);
+                     bool analyticJacobian = false,
+                     const std::vector<Real>& initialGuess = std::vector<Real>());
     _GlobalBootstrap(const std::vector<ext::shared_ptr<RateHelper> >& additionalHelpers,
                      const std::vector<Date>& additionalDates,
                      doubleOrNull accuracy = Null<double>(),
                      ext::shared_ptr<OptimizationMethod> optimizer = nullptr,
                      ext::shared_ptr<EndCriteria> endCriteria = nullptr,
-                     bool analyticJacobian = false);
+                     bool analyticJacobian = false,
+                     const std::vector<Real>& initialGuess = std::vector<Real>());
 };
 
 
@@ -326,10 +353,6 @@ export_curve_to_jacobian_graph(Name)
 
 %enddef
 
-
-%{
-using QuantLib::SimpleZeroYield;
-%}
 
 // Keep the original name for backwards compatibility.
 export_global_piecewise_curve(GlobalLinearSimpleZeroCurve,SimpleZeroYield,Linear);
