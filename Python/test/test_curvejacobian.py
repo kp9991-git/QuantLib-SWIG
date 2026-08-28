@@ -166,14 +166,38 @@ class CurveJacobianTest(unittest.TestCase):
             for j in range(reverse.columns()):
                 self.assertAlmostEqual(reverse[i][j], 0.0, delta=1.0e-12)
 
-    def test_node_quote_jacobian_matches_bumped_quotes(self):
-        """Cross-curve node/quote sensitivities match a re-bootstrap."""
+    def test_inverse_jacobian_matches_bumped_quotes(self):
+        """Inverse-Jacobian blocks match a re-bootstrap."""
         ois, ois_quotes, _ = self.build_ois_curve()
         projection, projection_quotes, _ = self.build_projection_curve(ois)
 
         graph = ql.CurveJacobianGraph()
         graph.add(ois)
         graph.add(projection)
+        self.assertTrue(graph.isComplete())
+
+        partial_graph = ql.CurveJacobianGraph()
+        partial_graph.add(projection)
+        self.assertFalse(partial_graph.isComplete())
+        analytic = ql.BoolVector()
+        partial = partial_graph.inverseJacobian(
+            projection, projection, analytic
+        )
+        self.assertTrue(all(analytic))
+
+        strict_graph = ql.CurveJacobianGraph(True)
+        strict_graph.add(projection)
+        self.assertFalse(strict_graph.isComplete())
+        with self.assertRaises(RuntimeError):
+            strict_graph.inverseJacobian(projection, projection)
+        strict_graph.add(ois)
+        self.assertTrue(strict_graph.isComplete())
+        strict = strict_graph.inverseJacobian(projection, projection)
+        self.assertEqual(partial.rows(), strict.rows())
+        self.assertEqual(partial.columns(), strict.columns())
+        for i in range(partial.rows()):
+            for j in range(partial.columns()):
+                self.assertAlmostEqual(partial[i][j], strict[i][j], delta=1.0e-10)
 
         curves = [ois, projection]
         for name, quotes, wrt in (
@@ -183,7 +207,7 @@ class CurveJacobianTest(unittest.TestCase):
             sensitivities = []
             for c in curves:
                 analytic = ql.BoolVector()
-                sensitivities.append(graph.nodeQuoteJacobian(c, wrt, analytic))
+                sensitivities.append(graph.inverseJacobian(c, wrt, analytic))
                 self.assertEqual(len(analytic), len(quotes))
                 self.assertTrue(all(analytic))
             for k, quote in enumerate(quotes):
@@ -205,8 +229,9 @@ class CurveJacobianTest(unittest.TestCase):
         ):
             curve, quotes, _ = self.build_ois_curve(curve_type)
             curve.enableExtrapolation()
-            graph = ql.CurveJacobianGraph()
+            graph = ql.CurveJacobianGraph(True)
             graph.add(curve)
+            self.assertTrue(graph.isComplete())
 
             analytic = ql.BoolVector()
             zero_node = graph.zeroNodeJacobian(curve, analytic)
@@ -225,7 +250,7 @@ class CurveJacobianTest(unittest.TestCase):
                         delta=1.0e-8,
                     )
 
-            node_quote = graph.nodeQuoteJacobian(curve, curve)
+            inverse = graph.inverseJacobian(curve, curve)
             dates = list(curve.dates())[1:]
             for k, quote in enumerate(quotes):
                 value = quote.value()
@@ -251,7 +276,7 @@ class CurveJacobianTest(unittest.TestCase):
                 for i in range(nodes):
                     expected = (up[i] - down[i]) / (2.0 * BUMP)
                     calculated = sum(
-                        zero_node[i][j] * node_quote[j][k]
+                        zero_node[i][j] * inverse[j][k]
                         for j in range(nodes)
                     )
                     self.assertAlmostEqual(calculated, expected, delta=2.0e-5)
@@ -284,9 +309,9 @@ class CurveJacobianTest(unittest.TestCase):
         for k in range(len(on_ois)):
             self.assertAlmostEqual(on_ois[k], risk[0][k], delta=1.0e-12)
 
-        # it must equal transpose(nodeQuoteJacobian) * nodeRisk
+        # it must equal transpose(inverseJacobian) * nodeRisk
         for c, curve in enumerate([ois, projection]):
-            jacobian = graph.nodeQuoteJacobian(projection, curve)
+            jacobian = graph.inverseJacobian(projection, curve)
             for k in range(jacobian.columns()):
                 expected = sum(
                     jacobian[j][k] * node_risk[j] for j in range(jacobian.rows())
@@ -407,7 +432,7 @@ class CurveJacobianTest(unittest.TestCase):
 
         # The graph-level derivative includes rebootstrap of the spread curve
         # when a quote on its base curve moves.
-        propagated = graph.nodeQuoteJacobian(spread, base)
+        propagated = graph.inverseJacobian(spread, base)
         for k, quote in enumerate(base_quotes):
             expected = node_derivatives([spread], quote)[0]
             for j, value in enumerate(expected):
@@ -418,7 +443,7 @@ class CurveJacobianTest(unittest.TestCase):
         projection, _, _ = self.build_projection_curve(spread)
         graph.add(projection)
         layered_analytic = ql.BoolVector()
-        layered = graph.nodeQuoteJacobian(projection, base, layered_analytic)
+        layered = graph.inverseJacobian(projection, base, layered_analytic)
         self.assertTrue(all(layered_analytic))
         for k, quote in enumerate(base_quotes):
             expected = node_derivatives([projection], quote)[0]

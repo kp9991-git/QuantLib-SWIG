@@ -49,6 +49,13 @@ inline std::vector<CurveJacobianAdder>& curveJacobianAdders() {
 /* Keeps curves alive and records their order for vector results. */
 class CurveJacobianGraphProxy {
   public:
+    explicit CurveJacobianGraphProxy(bool errorOnIncomplete = false)
+    : graph_(errorOnIncomplete) {}
+
+    bool isComplete() const {
+        return graph_.isComplete();
+    }
+
     void add(const ext::shared_ptr<YieldTermStructure>& curve) {
         QL_REQUIRE(curve, "null curve");
         for (auto adder : curveJacobianAdders())
@@ -82,28 +89,28 @@ class CurveJacobianGraphProxy {
 
     Matrix crossJacobian(const ext::shared_ptr<YieldTermStructure>& of,
                          const ext::shared_ptr<YieldTermStructure>& withRespectTo,
-                         std::vector<bool>* analyticRows = nullptr) const {
+                         std::vector<bool>* analyticEquations = nullptr) const {
         QL_REQUIRE(of && withRespectTo, "null curve");
-        return graph_.crossJacobian(*of, *withRespectTo, analyticRows);
+        return graph_.crossJacobian(*of, *withRespectTo, analyticEquations);
     }
 
-    Matrix nodeQuoteJacobian(const ext::shared_ptr<YieldTermStructure>& of,
-                             const ext::shared_ptr<YieldTermStructure>& withRespectTo,
-                             std::vector<bool>* analyticRows = nullptr) const {
+    Matrix inverseJacobian(const ext::shared_ptr<YieldTermStructure>& of,
+                           const ext::shared_ptr<YieldTermStructure>& withRespectTo,
+                           std::vector<bool>* analyticEquations = nullptr) const {
         QL_REQUIRE(of && withRespectTo, "null curve");
-        return graph_.nodeQuoteJacobian(*of, *withRespectTo, analyticRows);
+        return graph_.inverseJacobian(*of, *withRespectTo, analyticEquations);
     }
 
     Matrix zeroNodeJacobian(const ext::shared_ptr<YieldTermStructure>& curve,
-                            std::vector<bool>* analyticRows = nullptr) const {
+                            std::vector<bool>* analyticDerivatives = nullptr) const {
         QL_REQUIRE(curve, "null curve");
-        return graph_.zeroNodeJacobian(*curve, analyticRows);
+        return graph_.zeroNodeJacobian(*curve, analyticDerivatives);
     }
 
     Matrix nodeZeroJacobian(const ext::shared_ptr<YieldTermStructure>& curve,
-                            std::vector<bool>* analyticRows = nullptr) const {
+                            std::vector<bool>* analyticDerivatives = nullptr) const {
         QL_REQUIRE(curve, "null curve");
-        return graph_.nodeZeroJacobian(*curve, analyticRows);
+        return graph_.nodeZeroJacobian(*curve, analyticDerivatives);
     }
 
     std::map<const YieldTermStructure*, Array> riskInput(
@@ -139,24 +146,24 @@ class CurveJacobianGraphProxy {
     std::map<const YieldTermStructure*, Array> parRiskMap(
         const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                const std::vector<Array>& nodeRisk,
-               std::vector<bool>* analyticRows = nullptr) const {
-        return graph_.parRisk(riskInput(curves, nodeRisk), analyticRows);
+               std::vector<bool>* analyticEquations = nullptr) const {
+        return graph_.parRisk(riskInput(curves, nodeRisk), analyticEquations);
     }
 
     std::map<const YieldTermStructure*, Array> zeroRiskMap(
         const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                 const std::vector<Array>& nodeRisk,
-                std::vector<bool>* analyticRows = nullptr) const {
-        return graph_.zeroRisk(riskInput(curves, nodeRisk), analyticRows);
+                std::vector<bool>* analyticEquations = nullptr) const {
+        return graph_.zeroRisk(riskInput(curves, nodeRisk), analyticEquations);
     }
 
     void propagateMap(const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                       const std::vector<Array>& nodeRisk,
                       std::map<const YieldTermStructure*, Array>* zeroRisk,
                       std::map<const YieldTermStructure*, Array>* parRisk,
-                      std::vector<bool>* analyticRows = nullptr) const {
+                      std::vector<bool>* analyticEquations = nullptr) const {
         graph_.propagateNodeRisk(riskInput(curves, nodeRisk),
-                                 zeroRisk, parRisk, analyticRows);
+                                 zeroRisk, parRisk, analyticEquations);
     }
 
   private:
@@ -203,14 +210,15 @@ bool Name ## _registeredAsDerivedWithCurveJacobianGraph =
     /*! Jacobian of alive helper quotes with respect to free curve nodes.
 
         Rows follow the helpers and columns follow data()[1:]. Other curves'
-        nodes are held fixed. analyticRows identifies analytical rows. The
+        nodes are held fixed. analyticEquations identifies helper equations
+        calculated analytically. The
         remaining rows use numerical differentiation.
     */
     Matrix jacobian() {
         return self->jacobian();
     }
-    Matrix jacobian(std::vector<bool>& analyticRows) {
-        return self->jacobian(&analyticRows);
+    Matrix jacobian(std::vector<bool>& analyticEquations) {
+        return self->jacobian(&analyticEquations);
     }
 
     /*! Jacobian of free curve nodes with respect to helper quotes.
@@ -223,8 +231,8 @@ bool Name ## _registeredAsDerivedWithCurveJacobianGraph =
     Matrix inverseJacobian() {
         return self->inverseJacobian();
     }
-    Matrix inverseJacobian(std::vector<bool>& analyticRows) {
-        return self->inverseJacobian(&analyticRows);
+    Matrix inverseJacobian(std::vector<bool>& analyticEquations) {
+        return self->inverseJacobian(&analyticEquations);
     }
 }
 %enddef
@@ -237,7 +245,10 @@ class CurveJacobianGraphProxy {
         quotes. Rows follow alive helpers. Columns follow free curve nodes and
         exclude the reference-date value.
     */
-    CurveJacobianGraphProxy();
+    explicit CurveJacobianGraphProxy(bool errorOnIncomplete = false);
+
+    //! whether all reported curve dependencies are registered
+    bool isComplete() const;
 
     //! registers a curve and replaces any existing entry for it
     void add(const ext::shared_ptr<YieldTermStructure>& curve);
@@ -253,8 +264,8 @@ class CurveJacobianGraphProxy {
 
         /*! Jacobian of the first curve's helper quotes with respect to the
             second curve's nodes. Other curve nodes are held fixed. Equal
-            curves give the local Jacobian. analyticRows identifies rows that
-            did not require numerical differentiation.
+            curves give the local Jacobian. analyticEquations identifies
+            helper equations that did not require numerical differentiation.
         */
         Matrix crossJacobian(const ext::shared_ptr<YieldTermStructure>& of,
                              const ext::shared_ptr<YieldTermStructure>& withRespectTo) {
@@ -262,22 +273,24 @@ class CurveJacobianGraphProxy {
         }
         Matrix crossJacobian(const ext::shared_ptr<YieldTermStructure>& of,
                              const ext::shared_ptr<YieldTermStructure>& withRespectTo,
-                             std::vector<bool>& analyticRows) {
-            return self->crossJacobian(of, withRespectTo, &analyticRows);
+                             std::vector<bool>& analyticEquations) {
+            return self->crossJacobian(of, withRespectTo,
+                                       &analyticEquations);
         }
 
-        /*! Jacobian of the first curve's nodes with respect to the second
-            curve's helper quotes. It solves the differentiated bootstrap
-            system for all registered curves, including dependency cycles.
+        /*! Block of the inverse Jacobian for the registered curve system.
+            Rows are the first curve's nodes and columns are the second
+            curve's helper quotes. Dependency cycles are included.
         */
-        Matrix nodeQuoteJacobian(const ext::shared_ptr<YieldTermStructure>& of,
-                                 const ext::shared_ptr<YieldTermStructure>& withRespectTo) {
-            return self->nodeQuoteJacobian(of, withRespectTo);
+        Matrix inverseJacobian(const ext::shared_ptr<YieldTermStructure>& of,
+                               const ext::shared_ptr<YieldTermStructure>& withRespectTo) {
+            return self->inverseJacobian(of, withRespectTo);
         }
-        Matrix nodeQuoteJacobian(const ext::shared_ptr<YieldTermStructure>& of,
-                                 const ext::shared_ptr<YieldTermStructure>& withRespectTo,
-                                 std::vector<bool>& analyticRows) {
-            return self->nodeQuoteJacobian(of, withRespectTo, &analyticRows);
+        Matrix inverseJacobian(const ext::shared_ptr<YieldTermStructure>& of,
+                               const ext::shared_ptr<YieldTermStructure>& withRespectTo,
+                               std::vector<bool>& analyticEquations) {
+            return self->inverseJacobian(of, withRespectTo,
+                                         &analyticEquations);
         }
 
         /*! Jacobian of continuously compounded zero rates at a curve's node
@@ -289,8 +302,8 @@ class CurveJacobianGraphProxy {
         }
         Matrix zeroNodeJacobian(
                 const ext::shared_ptr<YieldTermStructure>& curve,
-                std::vector<bool>& analyticRows) {
-            return self->zeroNodeJacobian(curve, &analyticRows);
+                std::vector<bool>& analyticDerivatives) {
+            return self->zeroNodeJacobian(curve, &analyticDerivatives);
         }
 
         /*! Jacobian of a curve's free stored nodes with respect to
@@ -302,8 +315,8 @@ class CurveJacobianGraphProxy {
         }
         Matrix nodeZeroJacobian(
                 const ext::shared_ptr<YieldTermStructure>& curve,
-                std::vector<bool>& analyticRows) {
-            return self->nodeZeroJacobian(curve, &analyticRows);
+                std::vector<bool>& analyticDerivatives) {
+            return self->nodeZeroJacobian(curve, &analyticDerivatives);
         }
 
         /*! Converts curve-node sensitivities to helper-quote sensitivities.
@@ -320,9 +333,9 @@ class CurveJacobianGraphProxy {
         std::vector<Array> parRisk(
             const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                 const std::vector<Array>& nodeRisk,
-                std::vector<bool>& analyticRows) {
+                std::vector<bool>& analyticEquations) {
             return self->ordered(
-                self->parRiskMap(curves, nodeRisk, &analyticRows));
+                self->parRiskMap(curves, nodeRisk, &analyticEquations));
         }
 
         /*! Propagates node sensitivities through curve dependencies. Zero risk
@@ -340,9 +353,9 @@ class CurveJacobianGraphProxy {
         std::vector<Array> zeroRisk(
             const std::vector<ext::shared_ptr<YieldTermStructure> >& curves,
                  const std::vector<Array>& nodeRisk,
-                 std::vector<bool>& analyticRows) {
+                  std::vector<bool>& analyticEquations) {
             return self->ordered(
-                self->zeroRiskMap(curves, nodeRisk, &analyticRows));
+                self->zeroRiskMap(curves, nodeRisk, &analyticEquations));
         }
 
         //! zero risk on one registered curve
@@ -377,9 +390,10 @@ class CurveJacobianGraphProxy {
                 const std::vector<Array>& nodeRisk,
                 std::vector<Array>& zeroRisk,
                 std::vector<Array>& parRisk,
-                std::vector<bool>& analyticRows) {
+                std::vector<bool>& analyticEquations) {
             std::map<const YieldTermStructure*, Array> z, p;
-            self->propagateMap(curves, nodeRisk, &z, &p, &analyticRows);
+            self->propagateMap(curves, nodeRisk, &z, &p,
+                               &analyticEquations);
             zeroRisk = self->ordered(z);
             parRisk = self->ordered(p);
         }
