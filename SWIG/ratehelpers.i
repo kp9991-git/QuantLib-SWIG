@@ -373,6 +373,18 @@ class SwapRateHelper : public RateHelper {
     }
     Spread spread();
     ext::shared_ptr<VanillaSwap> swap();
+    SwapRateHelper(
+        const Handle<Quote>& rate,
+        const Schedule& fixedSchedule,
+        const Schedule& floatingSchedule,
+        DayCounter fixedDayCount,
+        const ext::shared_ptr<IborIndex>& iborIndex,
+        Handle<Quote> spread = Handle<Quote>(),
+        Handle<YieldTermStructure> discountingCurve = Handle<YieldTermStructure>(),
+        Pillar::Choice pillar = Pillar::LastRelevantDate,
+        Date customPillarDate = Date(),
+        std::optional<bool> useIndexedCoupons = std::nullopt,
+        const ext::shared_ptr<FloatingRateCouponPricer>& couponPricer = ext::shared_ptr<FloatingRateCouponPricer>());
 };
 
 %shared_ptr(BMASwapRateHelper)
@@ -683,6 +695,19 @@ class ConstNotionalCrossCurrencySwapRateHelper : public RateHelper {
                                              std::optional<Frequency> floatPaymentFrequency = std::nullopt,
                                              StubIndexSelection floatStubIndexSelection = StubIndexSelection());
     const ext::shared_ptr<ConstNotionalCrossCurrencyFixedVsFloatingSwap>& swap() const;
+    ConstNotionalCrossCurrencySwapRateHelper(
+        const Handle<Quote>& fixedRate,
+        const Schedule& fixedSchedule,
+        const Schedule& floatingSchedule,
+        const Calendar& calendar,
+        BusinessDayConvention convention,
+        DayCounter  fixedDayCount,
+        const ext::shared_ptr<IborIndex>& floatIndex,
+        const Handle<YieldTermStructure>& collateralCurve,
+        bool collateralOnFixedLeg,
+        Integer paymentLag = 0,
+        std::optional<bool> useIndexedCoupons = std::nullopt,
+        StubIndexSelection floatStubIndexSelection = StubIndexSelection());
 };
 
 %shared_ptr(ConstNotionalCrossCurrencyBasisSwapRateHelper)
@@ -710,6 +735,22 @@ class ConstNotionalCrossCurrencyBasisSwapRateHelper : public RateHelper {
                                                   StubIndexSelection baseStubIndexSelection = StubIndexSelection(),
                                                   StubIndexSelection quoteStubIndexSelection = StubIndexSelection());
     const ext::shared_ptr<ConstNotionalCrossCurrencyBasisSwap>& swap() const;
+    ConstNotionalCrossCurrencyBasisSwapRateHelper(
+        const Handle<Quote>& basis,
+        const Schedule& baseSchedule,
+        const Schedule& quoteSchedule,
+        const Calendar& calendar,
+        BusinessDayConvention convention,
+        const ext::shared_ptr<IborIndex>& baseCurrencyIndex,
+        const ext::shared_ptr<IborIndex>& quoteCurrencyIndex,
+        const Handle<YieldTermStructure>& collateralCurve,
+        bool isFxBaseCurrencyCollateralCurrency,
+        bool isBasisOnFxBaseCurrencyLeg,
+        Integer paymentLag = 0,
+        std::optional<bool> useIndexedCoupons = std::nullopt,
+        bool paymentLagOnNotionalExchanges = false,
+        StubIndexSelection baseStubIndexSelection = StubIndexSelection(),
+        StubIndexSelection quoteStubIndexSelection = StubIndexSelection());
 };
 
 %shared_ptr(MtMCrossCurrencyBasisSwapRateHelper)
@@ -741,6 +782,24 @@ class MtMCrossCurrencyBasisSwapRateHelper : public RateHelper {
     const ext::shared_ptr<MtMCrossCurrencyBasisSwap>& swap() const;
     Natural fxResetFixingDays() const;
     const Calendar& fxResetFixingCalendar() const;
+    MtMCrossCurrencyBasisSwapRateHelper(
+        const Handle<Quote>& basis,
+        const Schedule& baseSchedule,
+        const Schedule& quoteSchedule,
+        const Calendar& calendar,
+        BusinessDayConvention convention,
+        const ext::shared_ptr<IborIndex>& baseCurrencyIndex,
+        const ext::shared_ptr<IborIndex>& quoteCurrencyIndex,
+        const Handle<YieldTermStructure>& collateralCurve,
+        bool isFxBaseCurrencyCollateralCurrency,
+        bool isBasisOnFxBaseCurrencyLeg,
+        bool isFxBaseCurrencyLegResettable,
+        Integer paymentLag = 0,
+        Natural fxResetFixingDays = 0,
+        Calendar fxResetFixingCalendar = Calendar(),
+        std::optional<bool> useIndexedCoupons = std::nullopt,
+        StubIndexSelection baseStubIndexSelection = StubIndexSelection(),
+        StubIndexSelection quoteStubIndexSelection = StubIndexSelection());
 };
 
 %shared_ptr(IborIborBasisSwapRateHelper)
@@ -765,6 +824,20 @@ class IborIborBasisSwapRateHelper : public RateHelper {
                                 StubIndexSelection baseStubIndexSelection = StubIndexSelection(),
                                 StubIndexSelection otherStubIndexSelection = StubIndexSelection());
     ext::shared_ptr<Swap> swap();
+    IborIborBasisSwapRateHelper(
+        const Handle<Quote>& basis,
+        Schedule baseSchedule,
+        Schedule otherSchedule,
+        const ext::shared_ptr<IborIndex>& baseIndex,
+        const ext::shared_ptr<IborIndex>& otherIndex,
+        Handle<YieldTermStructure> discountHandle,
+        bool bootstrapBaseCurve,
+        std::optional<bool> useIndexedCoupons = std::nullopt,
+        Integer paymentLag = 0,
+        StubIndexSelection baseStubIndexSelection = StubIndexSelection(),
+        StubIndexSelection otherStubIndexSelection = StubIndexSelection());
+    Schedule baseSchedule() const;
+    Schedule otherSchedule() const;
 };
 
 %shared_ptr(OvernightIborBasisSwapRateHelper)
@@ -792,6 +865,22 @@ class OvernightIborBasisSwapRateHelper : public RateHelper {
                                      bool basisOnIborLeg = false,
                                      StubIndexSelection iborStubIndexSelection = StubIndexSelection());
     ext::shared_ptr<Swap> swap();
+    OvernightIborBasisSwapRateHelper(
+        const Handle<Quote>& basis,
+        Schedule overnightSchedule,
+        Schedule iborSchedule,
+        const ext::shared_ptr<OvernightIndex>& baseIndex,
+        const ext::shared_ptr<IborIndex>& otherIndex,
+        Handle<YieldTermStructure> discountHandle = Handle<YieldTermStructure>(),
+        bool bootstrapBaseCurve = false,
+        Integer paymentLag = 0,
+        std::optional<bool> useIndexedCoupons = std::nullopt,
+        RateAveraging::Type averagingMethod = RateAveraging::Compound,
+        bool telescopicValueDates = false,
+        bool basisOnIborLeg = false,
+        StubIndexSelection iborStubIndexSelection = StubIndexSelection());
+    Schedule overnightSchedule() const;
+    Schedule iborSchedule() const;
 };
 
 %shared_ptr(OvernightOvernightBasisSwapRateHelper)
@@ -817,6 +906,18 @@ class OvernightOvernightBasisSwapRateHelper : public RateHelper {
         RateAveraging::Type otherAveragingMethod = RateAveraging::Compound,
         bool telescopicValueDates = false);
     ext::shared_ptr<Swap> swap();
+    OvernightOvernightBasisSwapRateHelper(
+        const Handle<Quote>& basis,
+        Schedule schedule,
+        const ext::shared_ptr<OvernightIndex>& baseIndex,
+        const ext::shared_ptr<OvernightIndex>& otherIndex,
+        Handle<YieldTermStructure> discountHandle = Handle<YieldTermStructure>(),
+        bool bootstrapBaseCurve = false,
+        Integer paymentLag = 0,
+        RateAveraging::Type baseAveragingMethod = RateAveraging::Compound,
+        RateAveraging::Type otherAveragingMethod = RateAveraging::Compound,
+        bool telescopicValueDates = false);
+    Schedule schedule() const;
 };
 
 %shared_ptr(OvernightIndexedFundingRateHelper)
